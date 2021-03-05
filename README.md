@@ -1,14 +1,16 @@
 # mdbook-nix-eval
 
-This is a simple [mdbook](https://crates.io/crates/mdbook) preprocessor designed to write and evaluate code blocks containing [nix](https://nixos.org/) expressions to files.
+This is a [mdbook](https://crates.io/crates/mdbook) preprocessor designed to evaluate code blocks containing [nix](https://nixos.org/) expressions.
 
-    ```test-file.nix
+Code blocks with the nix language hint are evaluated and the original expression, and results (or stderr output), are returned to be included in the output document.
+
+    ```nix
     builtins.langVersion
     ```
 
-Code blocks with nix expressions are evaluated.
+Conde blocks with filename-like language hint will be evaluated as above, but also written to a per-chapter temp directory where the file can be referenced later.
 
-    ```nix
+    ```test-file.nix
     builtins.langVersion
     ```
 
@@ -41,5 +43,5 @@ mdbook path/to/book
 
 ## License
 
-MPL. See [LICENSE](LICENSE).  
+MPL. See [LICENSE](LICENSE).
 Copyright (c) 2021 Jason R. McNeil <jason@mcneil.dev>
