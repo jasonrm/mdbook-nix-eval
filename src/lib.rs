@@ -73,7 +73,7 @@ fn nix_eval(chapter: &mut Chapter) -> Result<(), Error> {
                     let mut out_file = File::create(nix_file_path.as_path()).expect("nix file created");
                     out_file.write_all(nix_src.as_ref()).expect("wrote temp file");
 
-                    eprintln!("writing temp file: {:?}", nix_file_path.as_path());
+                    // eprintln!("writing temp file: {:?}", nix_file_path.as_path());
 
                     // evaluate the nix expression
                     use std::process::{Command, Stdio};
