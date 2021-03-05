@@ -6,6 +6,7 @@ edition = "2018"
 keywords = ["mdbook", "nix", "nixos"]
 description = "A simple mdbook preprocessor for evaluating nix expressions"
 repository = "https://github.com/jasonrm/mdbook-nix-eval"
+homepage = "https://jasonrm.github.io/mdbook-nix-eval/"
 readme = "README.md"
 license = "MPL-2.0"
 exclude = [
