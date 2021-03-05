@@ -7,3 +7,4 @@ title = "Example"
 
 [preprocessor.nix-eval]
 command = "../target/debug/mdbook-nix-eval"
+renderer = ["html"]
