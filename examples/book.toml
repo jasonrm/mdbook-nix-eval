@@ -8,3 +8,5 @@ title = "Example"
 [preprocessor.nix-eval]
 command = "../target/debug/mdbook-nix-eval"
 renderer = ["html"]
+#eval_command = "nix-instantiate"
+eval_args = "--timeout 5"

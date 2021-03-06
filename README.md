@@ -28,6 +28,7 @@ Add it as a preprocessor to your `book.toml`:
 [preprocessor.nix-eval]
 command = "mdbook-nix-eval"
 renderer = ["html"]
+#eval_args = "--timeout 5"
 ```
 
 Finally, build your book as normal:
@@ -40,6 +41,8 @@ mdbook path/to/book
 
 * If the nix-builder has sandboxing enabled, there *should* be limited access to sensitive info, but... it's probably best to only run trusted expressions.
 * Network access is allowed in some (most?) cases by the nix sandbox (where available and enabled), so again only trusted expressions are advised.
+* nix-instantiate is run with --strict, which the man page say "Warning: This option can cause non-termination, because lazy data structures can be infinitely large." Without the flag, error messages like `error: cannot convert a thunk to JSON` are much more common.
+* Aside from what nix does internally with deterministic outputs, there isn't anything on top of that, so shorter chapters are better if using `mdbook serve` as each block does call out to nix.
 
 ## License
 

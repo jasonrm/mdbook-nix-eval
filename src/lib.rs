@@ -14,14 +14,31 @@ impl NixEval {
     }
 }
 
+struct NixConfig {
+    eval_command: String,
+    eval_args: String,
+}
+
 impl Preprocessor for NixEval {
     fn name(&self) -> &str { "nix-eval" }
 
     fn run(&self, _ctx: &PreprocessorContext, mut book: Book) -> Result<Book, Error> {
+        let mut nix_config = NixConfig {
+            eval_command: "nix-instantiate".to_owned(),
+            eval_args: "".to_owned(),
+        };
+        if let Some(config) = _ctx.config.get_preprocessor("nix-eval") {
+            if let Some(toml::value::Value::String(v)) = config.get("eval_command") {
+                nix_config.eval_command = v.to_owned();
+            }
+            if let Some(toml::value::Value::String(v)) = config.get("eval_args") {
+                nix_config.eval_args = v.to_owned();
+            }
+        }
         book.for_each_mut(|book| {
             if let mdbook::BookItem::Chapter(chapter) = book {
                 // TODO: better error handling...
-                if let Err(e) = nix_eval(chapter) {
+                if let Err(e) = nix_eval(&nix_config, chapter) {
                     eprintln!("nix-eval error: {:?}", e);
                 }
             }
@@ -35,7 +52,7 @@ impl Preprocessor for NixEval {
     }
 }
 
-fn nix_eval(chapter: &mut Chapter) -> Result<(), Error> {
+fn nix_eval(config: &NixConfig, chapter: &mut Chapter) -> Result<(), Error> {
     use pulldown_cmark::{Parser, Event, Tag, CodeBlockKind, CowStr};
 
     let chapter_temp_dir = tempdir()?;
@@ -57,6 +74,7 @@ fn nix_eval(chapter: &mut Chapter) -> Result<(), Error> {
                 Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(info))) => {
                     let is_file = info.ends_with(".nix");
                     let is_eval = info.to_string() == "nix";
+                    let mut wrap_lambda = false;
                     if !(is_file || is_eval) {
                         return Some(event);
                     }
@@ -78,13 +96,10 @@ fn nix_eval(chapter: &mut Chapter) -> Result<(), Error> {
                     // evaluate the nix expression
                     use std::process::{Command, Stdio};
                     use std::io::Write;
-                    let child = match Command::new("nix-instantiate")
+
+                    let quick_eval = match Command::new(&config.eval_command)
                         .current_dir(chapter_temp_dir.path())
-                        .arg("--read-write-mode")
-                        .arg("--strict")
-                        .arg("--json")
                         .arg("--eval")
-                        // .arg("--timeout").arg("30")
                         .arg(nix_file_path.as_path())
                         .stdout(Stdio::piped())
                         .stderr(Stdio::piped())
@@ -95,31 +110,76 @@ fn nix_eval(chapter: &mut Chapter) -> Result<(), Error> {
                             return None;
                         }
                     };
+                    let quick_eval_out = quick_eval.wait_with_output().expect("can launch nix-eval");
+                    let quick_eval_str = String::from_utf8(quick_eval_out.stdout).expect("valid utf-8");
+                    if quick_eval_str.trim() == "<LAMBDA>" {
+                        wrap_lambda = true;
+                    }
+
+                    let mut c_init = Command::new(&config.eval_command);
+                    let mut command = c_init.current_dir(chapter_temp_dir.path())
+                        .arg("--json")
+                        .arg("--eval")
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped());
+
+                    if is_eval || is_file {
+                        command = command.arg("--strict");
+                    }
+
+                    if config.eval_args.len() > 0 {
+                        command = command.args(config.eval_args.split(" "));
+                    }
+
+                    if wrap_lambda {
+                        command = command.arg("-E");
+                        command = command.arg(format!("import {} {}", nix_file_path.as_path().to_str().expect("invalid path"), "{}"));
+                    } else {
+                        command = command.arg(nix_file_path.as_path());
+                    }
+
+                    // eprintln!("{:?}", command);
+                    let child = match command.spawn() {
+                        Ok(c) => c,
+                        Err(e) => {
+                            eprintln!("failed to launch nix-eval, not rendering nix-eval block: {:?}", e);
+                            return None;
+                        }
+                    };
 
                     let cmd_output = child.wait_with_output().expect("can launch nix-eval");
 
-                    let svg: String = String::from_utf8(cmd_output.stdout).expect("valid utf-8");
+                    let output: String = String::from_utf8(cmd_output.stdout).expect("valid utf-8");
+                    let trimmed_output = output.trim();
                     let mut nix_eval_output = "".to_owned();
                     if !cmd_output.status.success() {
                         nix_eval_output = String::from_utf8(cmd_output.stderr).expect("valid utf-8");
-                    } else {
-                        let v: Value = serde_json::from_str(svg.as_str()).expect("invalid json");
-                        let line = match v {
-                            Value::String(s) => {
-                                let trimmed = s.trim();
-                                if trimmed.contains("\n") {
-                                    format!("\"\n{}\n\"", trimmed)
-                                } else {
-                                    format!("\"{}\"", trimmed)
-                                }
+                    } else if trimmed_output.len() > 0 {
+                        let _decoded = match serde_json::from_str(trimmed_output) {
+                            Ok(v) => {
+                                let line = match v {
+                                    Value::String(s) => {
+                                        let trimmed = s.trim();
+                                        if trimmed.contains("\n") {
+                                            format!("\"\n{}\n\"", trimmed)
+                                        } else {
+                                            format!("\"{}\"", trimmed)
+                                        }
+                                    },
+                                    Value::Bool(b) => serde_json::to_string_pretty(&b).unwrap(),
+                                    Value::Null => "null".to_owned(),
+                                    Value::Number(n) => format!("{}", n),
+                                    Value::Array(a) => serde_json::to_string_pretty(&a).unwrap(),
+                                    Value::Object(o) => serde_json::to_string_pretty(&o).unwrap(),
+                                };
+                                nix_eval_output.push_str(line.as_str())
                             },
-                            Value::Bool(b) => serde_json::to_string_pretty(&b).unwrap(),
-                            Value::Null => "null".to_owned(),
-                            Value::Number(n) => format!("{}", n),
-                            Value::Array(a) => serde_json::to_string_pretty(&a).unwrap(),
-                            Value::Object(o) => serde_json::to_string_pretty(&o).unwrap(),
+                            Err(_e) => {
+                                nix_eval_output.push_str(trimmed_output)
+                            }
                         };
-                        nix_eval_output.push_str(line.as_str())
+                    } else {
+                        nix_eval_output.push_str("<< no output >>")
                     }
 
                     let input_header = match is_file {

@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-nix-eval"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Jason R. McNeil <jason@mcneil.dev>"]
 edition = "2018"
 keywords = ["mdbook", "nix", "nixos"]
@@ -24,3 +24,4 @@ pulldown-cmark = "0.8"
 pulldown-cmark-to-cmark = "6.0"
 serde_json = "1.0"
 tempfile = "3"
+toml = "0.5.8"
