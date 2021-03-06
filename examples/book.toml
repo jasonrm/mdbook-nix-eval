@@ -1,9 +1,0 @@
-[book]
-authors = ["Jason McNeil"]
-language = "en"
-multilingual = false
-src = "src"
-title = "Example"
-
-[preprocessor.nix-eval]
-command = "../target/debug/mdbook-nix-eval"

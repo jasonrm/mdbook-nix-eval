@@ -164,7 +164,7 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="mdbook-nix-eval"><a class="header" href="#mdbook-nix-eval">mdbook-nix-eval</a></h1>
-<p>This is a simple <a href="https://crates.io/crates/mdbook">mdbook</a> preprocessor designed to write code blocks containing nix expressions to files:</p>
+<p>This is a <a href="https://crates.io/crates/mdbook">mdbook</a> preprocessor designed to evaluate code blocks containing <a href="https://nixos.org/">nix</a> expressions.</p>
 <pre><code>```test-file.nix
 builtins.langVersion
 ```
@@ -207,22 +207,34 @@ in
 in
 &quot;Nix Langauge Version: ${version}&quot;
 </code></pre>
-<pre><code class="language-json">error: cannot coerce an integer to a string, at /tmp/.tmphZpYbV/eval.nix:4:2
+<pre><code class="language-json">error: cannot coerce an integer to a string, at /tmp/.tmpudFalA/eval.nix:4:2
 </code></pre>
 </div>
+<p>Expressions can be functions</p>
 <div style='border-left: 2px solid;'>
-<pre><code class="language-nix">let
-  gitignore = builtins.fetchurl {
-    url = &quot;https://www.toptal.com/developers/gitignore/api/jetbrains,linux,macos,git&quot;;
-    name = &quot;gitignore&quot;;
-    sha256 = &quot;0fn3632fdz5rbvbkwnn82q6qsdsq2haxc7mlbm536g69zlr41c1z&quot;;
-  };
-in
-gitignore
+<pre><code class="language-nix">{ pkgs ? import &lt;nixpkgs&gt; {} }:
+pkgs.path
 </code></pre>
-<pre><code class="language-json">&quot;/nix/store/56jf2m821dfpvff73y51gjq062m4m7ml-gitignore&quot;
+<pre><code class="language-json">&quot;/nix/store/26gcnrhl5v14s6s2syxi1ynpcmik1xvd-nixpkgs&quot;
 </code></pre>
 </div>
+<p>However, they should have defaults, otherwise they won't return an evaluation that makes sense to display.</p>
+<p><strong>without-defaults.nix</strong></p>
+<div style='border-left: 2px solid;'>
+<pre><code class="language-nix">{ pkgs }:
+pkgs.path
+</code></pre>
+<pre><code class="language-json">error: anonymous function at /tmp/.tmpudFalA/without-defaults.nix:1:1 called without required argument 'pkgs', at (string):1:1
+</code></pre>
+</div>
+<p>Default-less function arg files can still be referenced later without issue</p>
+<div style='border-left: 2px solid;'>
+<pre><code class="language-nix">import ./without-defaults.nix { pkgs = import &lt;nixpkgs&gt; {}; }
+</code></pre>
+<pre><code class="language-json">&quot;/nix/store/26gcnrhl5v14s6s2syxi1ynpcmik1xvd-nixpkgs&quot;
+</code></pre>
+</div>
+<h2 id="more-examples"><a class="header" href="#more-examples">More Examples</a></h2>
 <p>If the nix-builder has sandboxing enabled, there <em>should</em> be limited access to sensitive info, but... it's probably best to only run trusted expressions.</p>
 <div style='border-left: 2px solid;'>
 <pre><code class="language-nix">let
@@ -238,32 +250,37 @@ error: build of '/nix/store/hsvgfm0h37yqirmgjnzqsw9jrrh1shrc-foo.drv' failed
 </div>
 <p>Network access is allowed in some (most?) cases, so again trusted expressions only are advised.</p>
 <div style='border-left: 2px solid;'>
-<pre><code class="language-nix">let
-run = (with import &lt;nixpkgs&gt; {}; runCommand &quot;foo&quot; {} &quot;date &gt; $out; ${fping}/bin/fping -c5 1.1.1.1 &gt;&gt; $out&quot;);
+<pre><code class="language-nix">{ pkgs ? import &lt;nixpkgs&gt; {} }:
+let
+  gitignore = builtins.fetchurl {
+    url = &quot;https://www.toptal.com/developers/gitignore/api/jetbrains,linux,macos,git&quot;;
+    name = &quot;gitignore&quot;;
+    sha256 = &quot;0fn3632fdz5rbvbkwnn82q6qsdsq2haxc7mlbm536g69zlr41c1z&quot;;
+  };
 in
-[
-    (builtins.readFile run)
-    run
-    false
-]
+{
+    out = builtins.elemAt (pkgs.lib.splitString &quot;\n&quot; (builtins.readFile gitignore)) 1;
+}
 </code></pre>
-<pre><code class="language-json">[
-  &quot;Fri Mar  5 07:46:36 UTC 2021\n1.1.1.1 : [0], 64 bytes, 13.8 ms (13.8 avg, 0% loss)\n1.1.1.1 : [1], 64 bytes, 12.5 ms (13.1 avg, 0% loss)\n1.1.1.1 : [2], 64 bytes, 12.6 ms (13.0 avg, 0% loss)\n1.1.1.1 : [3], 64 bytes, 12.5 ms (12.9 avg, 0% loss)\n1.1.1.1 : [4], 64 bytes, 12.6 ms (12.8 avg, 0% loss)\n&quot;,
-  &quot;/nix/store/0zzb4zixn565zbgdhzkf5gxsd65js1py-foo&quot;,
-  false
-]
+<pre><code class="language-json">{
+  &quot;out&quot;: &quot;# Created by https://www.toptal.com/developers/gitignore/api/jetbrains,linux,macos,git&quot;
+}
 </code></pre>
 </div>
 <div style='border-left: 2px solid;'>
-<pre><code class="language-nix">let
-  pkgs = import &lt;nixpkgs&gt; {};
-  inherit (pkgs.stdenv.hostPlatform) isDarwin;
-in
-isDarwin
+<pre><code class="language-nix">builtins.readFile (with import &lt;nixpkgs&gt; {}; runCommand &quot;foo&quot; {} &quot;date &gt; $out; ${fping}/bin/fping -c5 1.1.1.1 &gt;&gt; $out&quot;)
 </code></pre>
-<pre><code class="language-json">true
+<pre><code class="language-json">&quot;
+Fri Mar  5 07:46:36 UTC 2021
+1.1.1.1 : [0], 64 bytes, 13.8 ms (13.8 avg, 0% loss)
+1.1.1.1 : [1], 64 bytes, 12.5 ms (13.1 avg, 0% loss)
+1.1.1.1 : [2], 64 bytes, 12.6 ms (13.0 avg, 0% loss)
+1.1.1.1 : [3], 64 bytes, 12.5 ms (12.9 avg, 0% loss)
+1.1.1.1 : [4], 64 bytes, 12.6 ms (12.8 avg, 0% loss)
+&quot;
 </code></pre>
 </div>
+<h2 id="remote-build-machines"><a class="header" href="#remote-build-machines">Remote Build Machines</a></h2>
 <p>If you have remote building enabled,</p>
 <p><strong>systems.nix</strong></p>
 <div style='border-left: 2px solid;'>
@@ -291,20 +308,21 @@ isDarwin
 </code></pre>
 </div>
 <h2 id="supported-output-types"><a class="header" href="#supported-output-types">Supported output types</a></h2>
-<p>null</p>
+<h3 id="null"><a class="header" href="#null">null</a></h3>
 <div style='border-left: 2px solid;'>
 <pre><code class="language-nix">null
 </code></pre>
 <pre><code class="language-json">null
 </code></pre>
 </div>
-<p>string (note: the formatting is slightly modified to better show multiline)</p>
+<h3 id="string"><a class="header" href="#string">string</a></h3>
 <div style='border-left: 2px solid;'>
 <pre><code class="language-nix">&quot;this is a string&quot;
 </code></pre>
 <pre><code class="language-json">&quot;this is a string&quot;
 </code></pre>
 </div>
+<p>(note: the formatting is slightly modified to better show multiline)</p>
 <div style='border-left: 2px solid;'>
 <pre><code class="language-nix">&quot;this is\na multiline string\nnote that trailing whitespace is trimmed\n&quot;
 </code></pre>
@@ -315,14 +333,14 @@ note that trailing whitespace is trimmed
 &quot;
 </code></pre>
 </div>
-<p>numeric</p>
+<h3 id="numeric"><a class="header" href="#numeric">numeric</a></h3>
 <div style='border-left: 2px solid;'>
 <pre><code class="language-nix">12345
 </code></pre>
 <pre><code class="language-json">12345
 </code></pre>
 </div>
-<p>lists (arrays)</p>
+<h3 id="lists-arrays"><a class="header" href="#lists-arrays">lists (arrays)</a></h3>
 <div style='border-left: 2px solid;'>
 <pre><code class="language-nix">[1234 6789]
 </code></pre>
@@ -332,7 +350,7 @@ note that trailing whitespace is trimmed
 ]
 </code></pre>
 </div>
-<p>sets (objects)</p>
+<h3 id="sets-objects"><a class="header" href="#sets-objects">sets (objects)</a></h3>
 <div style='border-left: 2px solid;'>
 <pre><code class="language-nix">{first = 1234; second = 6789;}
 </code></pre>
@@ -342,7 +360,7 @@ note that trailing whitespace is trimmed
 }
 </code></pre>
 </div>
-<p>functions? nope</p>
+<h3 id="functions-nope"><a class="header" href="#functions-nope">functions? nope</a></h3>
 <div style='border-left: 2px solid;'>
 <pre><code class="language-nix">builtins.readFile
 </code></pre>
