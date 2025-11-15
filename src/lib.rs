@@ -9,6 +9,12 @@ use tempfile::tempdir;
 
 pub struct NixEval;
 
+impl Default for NixEval {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NixEval {
     pub fn new() -> NixEval {
         NixEval
@@ -135,7 +141,7 @@ fn nix_eval(config: &NixConfig, chapter: &mut Chapter) -> Result<(), Error> {
 
                 command = command.arg("--strict");
 
-                if config.eval_args.len() > 0 {
+                if !config.eval_args.is_empty() {
                     command = command.args(config.eval_args.split(" "));
                 }
 
@@ -169,8 +175,8 @@ fn nix_eval(config: &NixConfig, chapter: &mut Chapter) -> Result<(), Error> {
                 let mut nix_eval_output = "".to_owned();
                 if !cmd_output.status.success() {
                     nix_eval_output = String::from_utf8(cmd_output.stderr).expect("valid utf-8");
-                } else if trimmed_output.len() > 0 {
-                    let _decoded = match serde_json::from_str(trimmed_output) {
+                } else if !trimmed_output.is_empty() {
+                    match serde_json::from_str(trimmed_output) {
                         Ok(v) => {
                             let line = match v {
                                 Value::String(s) => {
@@ -211,7 +217,7 @@ fn nix_eval(config: &NixConfig, chapter: &mut Chapter) -> Result<(), Error> {
             // intercept text events if we're currently in the code block state
             Event::Text(txt) => {
                 if let Some(nix) = nix.as_mut() {
-                    nix.push_str(&txt);
+                    nix.push_str(txt);
                     None
                 } else {
                     Some(event)
