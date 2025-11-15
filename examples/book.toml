@@ -6,7 +6,7 @@ src = "src"
 title = "Example"
 
 [preprocessor.nix-eval]
-command = "../target/debug/mdbook-nix-eval"
+command = "../target/release/mdbook-nix-eval"
 renderer = ["html"]
 #eval_command = "nix-instantiate"
 eval_args = "--timeout 5"

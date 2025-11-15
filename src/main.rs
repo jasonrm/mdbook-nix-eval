@@ -1,17 +1,17 @@
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{Arg, ArgMatches, Command};
 use mdbook::errors::Error;
 use mdbook::preprocess::{CmdPreprocessor, Preprocessor};
+use mdbook_nix_eval::NixEval;
 use std::io;
 use std::process;
-use mdbook_nix_eval::NixEval;
 
-fn make_app() -> App<'static, 'static> {
-    App::new("nix-eval")
+fn make_app() -> Command {
+    Command::new("nix-eval")
         .about("A simple mdbook preprocessor for evaluating nix expressions")
         .subcommand(
-            SubCommand::with_name("supports")
-                .arg(Arg::with_name("renderer").required(true))
-                .about("Check whether a renderer is supported by this preprocessor")
+            Command::new("supports")
+                .arg(Arg::new("renderer").required(true))
+                .about("Check whether a renderer is supported by this preprocessor"),
         )
 }
 
@@ -51,7 +51,9 @@ fn handle_preprocessing(pre: &dyn Preprocessor) -> Result<(), Error> {
 }
 
 fn handle_supports(pre: &dyn Preprocessor, sub_args: &ArgMatches) -> ! {
-    let renderer = sub_args.value_of("renderer").expect("Required argument");
+    let renderer = sub_args
+        .get_one::<String>("renderer")
+        .expect("Required argument");
     let supported = pre.supports_renderer(&renderer);
 
     // Signal whether the renderer is supported by exiting with 1 or 0.
